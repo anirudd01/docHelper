@@ -3,4 +3,5 @@ uvicorn
 pdfplumber
 sentence-transformers
 scikit-learn
-requests 
+requests
+python-multipart

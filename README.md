@@ -1,255 +1,77 @@
-# 🧠 docHelper - Local PDF Q&A App using Ollama + FastAPI (Python 3.13)
+# 🧠 docHelper - Local PDF Q&A App using Ollama + FastAPI
 
-A **learning-first project** to explore integrating **Large Language Models (LLMs)** into Python applications. This app enables you to upload a PDF, extract its content, and ask questions about it using a **locally running LLM (via [Ollama](https://ollama.com))** — no internet APIs or external databases required (at first).
-
----
-
-## 📚 Project Overview
-
-This project is structured in **three progressive phases/versions** to help you learn and build incrementally:
-
-### 🚦 Version 1 (v1): Single PDF Only
-- The app works with just one PDF at a time.
-- All questions are answered using the content or vectors of that single PDF.
-- Uploading a new PDF replaces the previous one.
-
-### 📂 Version 2 (v2): Multiple PDFs, User-Selectable
-- The app supports multiple uploaded PDFs.
-- The user can select which PDF(s) to query for answers.
-- Questions are answered using the selected PDF(s) only.
-
-### 🧠 Version 3 (v3): Database-Backed, Global Search
-- The app uses a database (PostgreSQL + pgvector) to store all PDF contents and vectors.
-- The user cannot select specific PDFs; instead, all questions are answered using the most relevant data from any available PDF.
-- This enables global, context-aware search across all uploaded documents.
+A **learning-first project** to explore integrating **Large Language Models (LLMs)** into Python applications. This app enables you to upload PDFs, extract their content, and ask questions about them using a **locally running LLM (via [Ollama](https://ollama.com))** — no internet APIs or external databases required (at first).
 
 ---
 
-## 🧰 Tech Stack
+## 🚦 Current State & Features
 
-| Purpose              | Tool/Library                                   |
-|----------------------|------------------------------------------------|
-| Web API              | [FastAPI](https://fastapi.tiangolo.com/)       |
-| Local LLM API        | [Ollama](https://ollama.com)                   |
-| PDF Text Extraction  | `pdfplumber` or `PyPDF2`                       |
-| Embeddings           | `sentence-transformers`                        |
-| Vector Search        | FAISS (in-memory), pgvector (later)            |
-| Optional UI          | Swagger UI, or basic frontend (future)         |
-
----
-
-## ✅ Prerequisites
-
-- Python 3.13
-- [Ollama installed and running](https://ollama.com)
-- At least one model pulled locally (e.g., `llama3`, `mistral`, or `gemma`)
-
-```bash
-ollama run llama3  # or mistral, gemma, etc.
-```
+### ✅ Accomplished (v1 + v2)
+- Upload and manage multiple PDFs in file system (no overwrite, filenames preserved)
+- Extract and store text from PDFs for fast, repeatable access
+- Chunk text at upload time (user-defined chunk size, fixed per file)
+- Generate and store vector embeddings for each PDF (background task)
+- Efficient vector search for Q&A (RAG) across selected or all PDFs
+- Ask questions using local LLM (Ollama) with relevant context
+- Modular code: utilities for file management, embedding, vector search, and LLM calls
+- All file I/O and chunk/vector management handled in utils (not main API logic)
+- Ready for database integration and advanced features
 
 ---
 
-## 📁 Suggested Folder Structure
+## 🛣️ Roadmap & Next Phases
 
-```text
-askmypdf/
-├── app/
-│   ├── main.py             # FastAPI routes
-│   ├── pdf_utils.py        # PDF reading & text chunking
-│   ├── embed_utils.py      # Text embedding logic
-│   ├── llm_utils.py        # Prompting and interaction with Ollama
-│   └── vector_store.py     # In-memory or FAISS search
-├── data/
-│   └── pdfs/      # PDF files saved here
-├── requirements.txt
-└── README.md
-```
+### 🚦 v3: Database-Backed RAG with ORG Support
+- Integrate PostgreSQL + pgvector for persistent, scalable vector search
+- Add org info (start with one org, scalable to many)
+- Store files on disk, but keep extensive metadata in DB (filename, org, chunk size, upload time, etc.)
+- Separate table for vector search (chunk, embedding, metadata)
+- /ask endpoint remains as is (file-based, for backward compatibility)
+- New /ask_ai endpoint: retrieves context from DB, then queries LLM
+- Best practices: use DB for metadata, keep files on disk for large file support, always track chunk size
+- Prepare for scaling to 100s/1000s of PDFs and multi-org use
 
----
+### 🧹 v4: Text Cleaning & Intelligent Chunking
+- Add text_cleaner utility for preprocessing (remove noise, fix formatting, categorize sections)
+- Support advanced chunking strategies (semantic, section-aware)
+- Store cleaned text for future use
+- Improves RAG and LLM answer quality
 
-## 🚦 Phase 1: PDF Upload & Text Extraction
+### 🧠 v5: Prompt Engineering & Domain Guardrails
+- Add prompt engineering techniques to ensure only company/employee domain questions are answered
+- Out-of-domain questions receive a polite, safe response
+- Add prompt templates and context filtering
 
-### Goals
-- **v1:** Upload a single PDF via API (replaces previous PDF)
-- Extract raw text
-- Chunk the text (if large)
-- Store text temporarily (in memory or file)
+### 🚀 v6: Large File & Performance Testing
+- Test with large PDFs (300-500+ pages)
+- Optimize chunking, embedding, and vector search for speed and memory
+- Monitor and profile for bottlenecks
 
-### Implementation Steps
-1. **Initialize FastAPI app**
-2. **Create `/upload-pdf` endpoint** (single PDF in v1)
-3. **Extract text** using `pdfplumber` or `PyPDF2`
-4. **Chunk text** (e.g., by 500 tokens or ~200 words)
-5. **Store chunks** in memory (global dict keyed by session/filename)
-6. **Save original PDF** in `/data/uploaded_pdfs/`
+### 🛡️ v7: Model Deployment & Cloud Readiness
+- Explore loading models directly (not via Ollama API)
+- Prepare for deployment on platforms like Railway (with/without Docker)
+- If Ollama is not deployable, support model files and custom inference interface
+- Add deployment scripts and best practices
 
----
-
-## 🔍 Phase 2: Local RAG with Ollama (No DB)
-
-### Goals
-- **v2:** Support multiple PDFs, allow user to select which PDF(s) to query
-- Accept a question
-- Embed the question and compare with PDF chunks
-- Use Ollama to answer using most relevant chunks
-- **(Planned)** Add a text cleaning and categorization step before chunking/embedding (see below)
-
-### Implementation Steps
-1. **Generate embeddings** for each text chunk using `sentence-transformers`
-2. **Use cosine similarity** to find top-k relevant chunks for a question
-3. **Build `/ask` endpoint`** (add PDF selection in v2)
-4. **Create a prompt template:**
-
-   ```text
-   Context:
-   <top relevant chunk(s)>
-
-   Question: <user question>
-   Answer:
-   ```
-5. **Send prompt to Ollama** using its HTTP API
-6. **Return the LLM-generated answer**
+### 💻 v8: UI, Auth, and User Experience
+- Add a simple UI (Streamlit or web frontend)
+- Implement authentication and per-user chat history
+- Remember chat and context for each user
+- Add admin features for managing orgs, files, and users
 
 ---
 
-## 💾 Phase 3: Persist with pgvector + PostgreSQL
-
-### Goals
-- **v3:** User cannot select PDFs; queries search all available PDFs for relevant data
-- Replace in-memory vector search with pgvector
-- Enable multiple PDFs, persistent storage
-- **(Planned)** Integrate a text cleaning and categorization utility (see below) before storing vectors in DB
-
-### Implementation Steps
-1. **Install PostgreSQL** with pgvector extension
-2. **Create tables:** PDFs, Chunks, Embeddings
-3. **Store chunk embeddings in DB**
-4. **Use vector similarity SQL** to retrieve context
-5. **Add metadata** (page number, filename, upload time, etc.)
+## 🧰 Best Practices & Learning Goals
+- Keep file and vector management modular and in utils
+- Store all metadata (including chunk size) for reproducibility
+- Use background tasks for heavy processing (embedding, text extraction)
+- Separate API logic from file/data logic
+- Always preprocess and sanitize text before chunking/embedding
+- Use database for metadata and vector search at scale
+- Test with large files and real-world data
+- Add guardrails and prompt engineering for safe, relevant answers
+- Build incrementally, with clear phases and goals
 
 ---
 
-## 🧹 Planned: Text Cleaning & Categorization Utility
-
-- Add a `utils/text_cleaner.py` module for:
-  - Removing bullet points, extra whitespace, and special characters from extracted text
-  - Optionally categorizing each chunk/line using basic NLP (e.g., sentence type, section headers, etc.)
-  - This will improve chunk quality and RAG relevance, especially when using a DB/vector store
-- Integrate this cleaning step before chunking/embedding in v2/v3
-
----
-
-## 📦 Installation
-
-### 1. Clone this Repo
-
-```bash
-git clone https://github.com/your-username/askmypdf.git
-cd askmypdf
-```
-
-### 2. Create a Virtual Environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-**Sample `requirements.txt`:**
-
-```
-fastapi
-uvicorn
-pdfplumber
-sentence-transformers
-scikit-learn
-requests
-```
-
-### 4. Run the App
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Swagger UI will be available at [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-## 🤖 Connecting to Ollama
-
-Ollama runs locally at `http://localhost:11434`.
-
-**Example API call:**
-
-```python
-import requests
-
-response = requests.post(
-    "http://localhost:11434/api/generate",
-    json={
-        "model": "llama3",
-        "prompt": "Context: ... \n\nQuestion: ... \nAnswer:"
-    }
-)
-print(response.json()['response'])
-```
-
----
-
-## 🧪 Sample Usage
-
-### v1: Single PDF
-1. Upload a PDF via `/upload-pdf` (this replaces any previous PDF)
-2. Ask a question (all questions use the current PDF)
-
-### v2: Multiple PDFs
-1. Upload multiple PDFs
-2. Select which PDF(s) to use for answering questions
-3. Ask a question (answers use only the selected PDFs)
-
-### v3: Database-Backed, Global Search
-1. Upload PDFs (all are stored in the database)
-2. Ask a question (the app finds the most relevant context from any PDF, user cannot select PDFs)
-
----
-
-## ✨ Stretch Goals (Optional)
-
-- [ ] Add session or file-specific context tracking
-- [ ] Use LangChain or LlamaIndex to simplify the pipeline
-- [ ] Use Docker for local Ollama + app setup
-- [ ] Add a basic frontend (Streamlit or HTML form)
-- [ ] Replace Ollama with OpenAI/Gemini API
-
----
-
-## 🙌 Contributing
-
-This is a personal learning project. Feedback and suggestions are welcome! Feel free to open issues or submit pull requests.
-
----
-
-## 🧠 TL;DR
-
-- **v1:** Upload PDFs → Only one PDF active at a time, all questions use that PDF
-- **v2:** Multiple PDFs, user can select which PDFs to use for answers
-- **v3:** All PDFs stored in DB, user cannot select PDFs, answers use most relevant context from any PDF
-- Use sentence embeddings for similarity
-- Use Ollama locally to answer questions with relevant context
-- Start simple, scale with pgvector later
-
----
-
-Happy building! 🚀
-
----
-
-*Let me know when you're ready and I’ll help you scaffold `main.py`, `pdf_utils.py`, and others in **Phase 1** — with minimal magic and full explainability.*
+Happy building and learning! 🚀
