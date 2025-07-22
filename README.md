@@ -93,6 +93,7 @@ askmypdf/
 - Accept a question
 - Embed the question and compare with PDF chunks
 - Use Ollama to answer using most relevant chunks
+- **(Planned)** Add a text cleaning and categorization step before chunking/embedding (see below)
 
 ### Implementation Steps
 1. **Generate embeddings** for each text chunk using `sentence-transformers`
@@ -118,6 +119,7 @@ askmypdf/
 - **v3:** User cannot select PDFs; queries search all available PDFs for relevant data
 - Replace in-memory vector search with pgvector
 - Enable multiple PDFs, persistent storage
+- **(Planned)** Integrate a text cleaning and categorization utility (see below) before storing vectors in DB
 
 ### Implementation Steps
 1. **Install PostgreSQL** with pgvector extension
@@ -125,6 +127,16 @@ askmypdf/
 3. **Store chunk embeddings in DB**
 4. **Use vector similarity SQL** to retrieve context
 5. **Add metadata** (page number, filename, upload time, etc.)
+
+---
+
+## 🧹 Planned: Text Cleaning & Categorization Utility
+
+- Add a `utils/text_cleaner.py` module for:
+  - Removing bullet points, extra whitespace, and special characters from extracted text
+  - Optionally categorizing each chunk/line using basic NLP (e.g., sentence type, section headers, etc.)
+  - This will improve chunk quality and RAG relevance, especially when using a DB/vector store
+- Integrate this cleaning step before chunking/embedding in v2/v3
 
 ---
 
