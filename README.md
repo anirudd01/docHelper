@@ -75,3 +75,22 @@ A **learning-first project** to explore integrating **Large Language Models (LLM
 ---
 
 Happy building and learning! 🚀
+
+---
+
+## 📁 File/Folder Overview
+
+- `app/main.py` — FastAPI app entrypoint, only mounts routers, no endpoint logic except health check.
+- `app/core_router.py` — Core endpoints: upload, list, get-pdf-text (prefix: /core)
+- `app/v1_router.py` — v1 endpoints: file-based /ask (prefix: /v1)
+- `app/v2_router.py` — v2 endpoints: DB/pgvector based /ask_ai (prefix: /v2)
+- `utils/file_manager.py` — Handles PDF/text/vector storage, chunking, and preview utilities.
+- `utils/vector_utils.py` — Cosine similarity and top-k selection utilities for vector search and Embedding logic, background processing, and DB/file save logic.
+- `utils/llm_utils.py` — Handles LLM (Ollama) prompt calls and streaming output.
+- `utils/db_utils.py` — PostgreSQL/pgvector connection, table creation, and DB insert/query helpers.
+- `utils/db_models.py` — Python dataclasses for Org, PDF, Chunk, Embedding (for structuring data in code).
+- `data/pdfs/` — Directory where all uploaded PDFs are stored.
+- `data/texts/` — Directory for extracted text files.
+- `data/vectors/` — Directory for vector files (.npy).
+- `requirements.txt` — Python dependencies for the project.
+- `README.md` — Project documentation, roadmap, and usage instructions.
