@@ -2,9 +2,7 @@ fastapi
 uvicorn
 pdfplumber
 sentence-transformers
-scikit-learn
 requests
 python-multipart
-streamlit
 psycopg2-binary
 dotenv

@@ -1,0 +1,3 @@
+dotenv
+streamlit
+python-multipart
