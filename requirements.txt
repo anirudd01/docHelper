@@ -5,3 +5,4 @@ sentence-transformers
 scikit-learn
 requests
 python-multipart
+streamlit

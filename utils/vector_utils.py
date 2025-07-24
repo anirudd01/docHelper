@@ -11,11 +11,13 @@ from utils.db_utils import (
     insert_pdf,
 )
 from utils.file_manager import (
-    chunk_text,
     extract_text_from_pdf,
     store_text,
     store_vectors,
+    store_cleaned_text,
+    advanced_chunk_text,
 )
+from utils.text_cleaner import TextCleaner
 
 # Default embedding model and size (can be changed later)
 DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
@@ -44,18 +46,25 @@ def get_embedder(model_name: Optional[str] = None):
 
 
 def extract_embed_n_save(pdf_path, chunk_size, model_name, pdf_filename):
-    # Store text
+    # Store raw text
     extracted_text = extract_text_from_pdf(pdf_path)
-    chunks = chunk_text(extracted_text, chunk_size=chunk_size)
     fname_without_ext = os.path.splitext(pdf_filename)[0]
     text_filename = fname_without_ext + ".txt"
     store_text(extracted_text, text_filename)
+    # Clean text and store cleaned version
+    cleaned_text = TextCleaner.clean_text(extracted_text)
+    cleaned_text_filename = fname_without_ext + ".txt"
+    store_cleaned_text(cleaned_text, cleaned_text_filename)
+    # Advanced chunking on cleaned text
+    chunks = advanced_chunk_text(cleaned_text, chunk_size=chunk_size)
     # Embed and store vectors
     embedder = get_embedder(model_name)
     vectors = embedder.embed(chunks)
     vector_filename = fname_without_ext + ".npy"
     store_vectors(vectors, vector_filename)
-    print(f"Saved text to {text_filename} and vectors to {vector_filename}")
+    print(
+        f"Saved raw text to {text_filename}, cleaned text to {cleaned_text_filename}, and vectors to {vector_filename}"
+    )
     if SAVE_TO_DB:
         save_in_db(pdf_filename, chunk_size, chunks, vectors)
 

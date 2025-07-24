@@ -3,6 +3,8 @@ from typing import List, Optional
 
 import numpy as np
 import pdfplumber
+import re
+from utils.text_cleaner import TextCleaner
 
 # Always resolve storage relative to project root
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +15,9 @@ os.makedirs(VECTOR_STORAGE_DIR, exist_ok=True)
 
 TEXT_STORAGE_DIR = os.path.join(PROJECT_ROOT, "data", "texts")
 os.makedirs(TEXT_STORAGE_DIR, exist_ok=True)
+
+CLEANED_TEXT_STORAGE_DIR = os.path.join(PROJECT_ROOT, "data", "cleaned")
+os.makedirs(CLEANED_TEXT_STORAGE_DIR, exist_ok=True)
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
@@ -106,6 +111,20 @@ def fetch_text(filename: str) -> Optional[str]:
     return file_path if os.path.exists(file_path) else None
 
 
+def store_cleaned_text(text: str, filename: str) -> str:
+    """Save cleaned text to the cleaned text storage directory as .txt."""
+    file_path = os.path.join(CLEANED_TEXT_STORAGE_DIR, filename)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return file_path
+
+
+def fetch_cleaned_text(filename: str) -> Optional[str]:
+    """Get the path to a stored cleaned text file if it exists."""
+    file_path = os.path.join(CLEANED_TEXT_STORAGE_DIR, filename)
+    return file_path if os.path.exists(file_path) else None
+
+
 def read_chunks_and_vectors(
     pdf_filename: str, chunk_size: int = 200
 ) -> Optional[tuple]:
@@ -120,6 +139,73 @@ def read_chunks_and_vectors(
         text = f.read()
 
     chunks = chunk_text(text, chunk_size=chunk_size)
+    # Vector file
+    vector_filename = fname_without_ext + ".npy"
+    vector_path = fetch_vectors(vector_filename)
+    if not vector_path:
+        return None
+    vectors = np.load(vector_path)
+    if len(chunks) != len(vectors):
+        return None
+    return (chunks, vectors)
+
+
+def advanced_chunk_text(
+    text: str, chunk_size: int = 200, overlap: int = 30
+) -> List[str]:
+    """
+    Split cleaned text into sentence-based chunks with overlap for better context.
+    Args:
+        text (str): Cleaned text to chunk.
+        chunk_size (int): Target number of words per chunk.
+        overlap (int): Number of words to overlap between chunks.
+    Returns:
+        List[str]: List of text chunks.
+    """
+    # Clean the text first (in case not already cleaned)
+    text = TextCleaner.clean_text(text)
+    # Split into sentences (simple regex, can be improved)
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    chunks = []
+    current_chunk = []
+    current_len = 0
+    for sent in sentences:
+        words = sent.split()
+        if current_len + len(words) > chunk_size and current_chunk:
+            # Save current chunk
+            chunks.append(" ".join(current_chunk))
+            # Start new chunk with overlap
+            if overlap > 0:
+                overlap_words = (
+                    current_chunk[-overlap:]
+                    if len(current_chunk) >= overlap
+                    else current_chunk
+                )
+                current_chunk = overlap_words.copy()
+                current_len = len(current_chunk)
+            else:
+                current_chunk = []
+                current_len = 0
+        current_chunk.extend(words)
+        current_len += len(words)
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+    return [c.strip() for c in chunks if c.strip()]
+
+
+def read_cleaned_chunks_and_vectors(
+    pdf_filename: str, chunk_size: int = 200, overlap: int = 30
+) -> Optional[tuple]:
+    """Return (chunks, vectors) for a given PDF filename using cleaned text and advanced chunking, or None if not available."""
+    fname_without_ext = os.path.splitext(pdf_filename)[0]
+    # Cleaned text file
+    cleaned_text_filename = fname_without_ext + ".txt"
+    cleaned_text_path = fetch_cleaned_text(cleaned_text_filename)
+    if not cleaned_text_path:
+        return None
+    with open(cleaned_text_path, "r", encoding="utf-8") as f:
+        cleaned_text = f.read()
+    chunks = advanced_chunk_text(cleaned_text, chunk_size=chunk_size, overlap=overlap)
     # Vector file
     vector_filename = fname_without_ext + ".npy"
     vector_path = fetch_vectors(vector_filename)

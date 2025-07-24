@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from utils.vector_utils import get_embedder
-from utils.file_manager import list_pdfs, read_chunks_and_vectors
+from utils.file_manager import list_pdfs, read_cleaned_chunks_and_vectors
 from utils.llm_utils import generate_llm_answer
 from utils.vector_utils import cosine_sim, get_top_k_indices
 
@@ -11,6 +11,10 @@ v1_router = APIRouter(prefix="/v1")
 def ask_question(
     question: str = Query(..., description="Your question about the PDF"),
     top_k: int = Query(3, description="Number of top chunks to use as context"),
+    chunk_size: int = Query(200, description="Words per chunk (advanced chunking)"),
+    overlap: int = Query(
+        30, description="Words to overlap between chunks (advanced chunking)"
+    ),
 ):
     pdfs = list_pdfs()
     if not pdfs:
@@ -20,7 +24,9 @@ def ask_question(
     all_embeddings = []
     chunk_sources = []
     for pdf in pdfs:
-        result = read_chunks_and_vectors(pdf)
+        result = read_cleaned_chunks_and_vectors(
+            pdf, chunk_size=chunk_size, overlap=overlap
+        )
         if not result:
             print(f"WARNING!!! no chunks or vectors found {pdf}")
             continue
@@ -40,8 +46,8 @@ def ask_question(
         answer = generate_llm_answer(prompt, model_name="llama3.2")
         return {
             "answer": answer,
-            "context_chunks": [all_chunks[i] for i in top_indices],
-            "sources": [chunk_sources[i] for i in top_indices],
+            # "context_chunks": [all_chunks[i] for i in top_indices],
+            "sources": list(set([chunk_sources[i] for i in top_indices])),
         }
     except Exception as e:
         return {"error": str(e)}

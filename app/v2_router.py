@@ -2,7 +2,6 @@ from fastapi import APIRouter, Query
 from utils.vector_utils import get_embedder
 from utils.db_utils import get_db_conn, get_or_create_org
 from utils.llm_utils import generate_llm_answer
-import numpy as np
 
 v2_router = APIRouter(prefix="/v2")
 
@@ -26,7 +25,7 @@ def ask_ai(
                 pdf_ids = [row[0] for row in cur.fetchall()]
                 if not pdf_ids:
                     return {"error": "No PDFs found for org."}
-                q_vec_str = '[' + ','.join(str(float(x)) for x in q_vec) + ']'
+                q_vec_str = "[" + ",".join(str(float(x)) for x in q_vec) + "]"
                 cur.execute(
                     """
                     SELECT c.text, p.filename, e.embedding <#> %s::vector AS distance
@@ -50,7 +49,7 @@ def ask_ai(
                 answer = generate_llm_answer(prompt, model_name="llama3.2")
                 return {
                     "answer": answer,
-                    "context_chunks": [row[0] for row in rows],
+                    # "context_chunks": [row[0] for row in rows],
                     "sources": sources,
                 }
     except Exception as e:

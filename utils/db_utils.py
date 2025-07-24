@@ -25,7 +25,7 @@ def execute_sql(sql, params=None):
 
 def init_tables():
     execute_sql("""CREATE EXTENSION IF NOT EXISTS vector;""")
-    sql="""
+    sql = """
     CREATE TABLE IF NOT EXISTS orgs (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,

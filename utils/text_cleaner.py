@@ -2,6 +2,7 @@ class TextCleaner:
     """
     Utility class for cleaning and preprocessing raw PDF text.
     """
+
     @staticmethod
     def clean_text(text: str) -> str:
         """
@@ -12,12 +13,13 @@ class TextCleaner:
             str: Cleaned text.
         """
         import re
+
         # Remove non-printable/control characters
-        text = re.sub(r'[\x00-\x1F\x7F]', '', text)
+        text = re.sub(r"[\x00-\x1F\x7F]", "", text)
         # Remove common bullet points at the start of lines
-        text = re.sub(r'^[\s]*([\-\*•◦‣▪‣‣●○])\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r"^[\s]*([\-\*•◦‣▪‣‣●○])\s+", "", text, flags=re.MULTILINE)
         # Normalize whitespace (multiple spaces, tabs, newlines)
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"\s+", " ", text)
         # Strip leading/trailing whitespace
         text = text.strip()
-        return text 
+        return text
