@@ -94,3 +94,8 @@ Happy building and learning! 🚀
 - `data/vectors/` — Directory for vector files (.npy).
 - `requirements.txt` — Python dependencies for the project.
 - `README.md` — Project documentation, roadmap, and usage instructions.
+
+### how to run stream lit app
+```bash
+streamlit run app/streamlit_app.py --server.showEmailPrompt False --server.enableXsrfProtection=false --server.enableCORS=false --server.port 8123 --server.address 0.0.0.0
+```

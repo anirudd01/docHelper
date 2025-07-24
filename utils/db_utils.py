@@ -9,7 +9,6 @@ load_dotenv()
 def get_db_conn():
     conn_str = os.getenv("DATABASE_URL")
     if conn_str:
-        print(f"Connecting to {conn_str}")
         return psycopg2.connect(conn_str)
     return psycopg2.connect(
         dbname=os.getenv("PGDATABASE", "postgres"),
