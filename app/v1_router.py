@@ -43,7 +43,7 @@ def ask_question(
     )
     prompt = f"""Context:\n{context}\n\nQuestion: {question}\nAnswer:"""
     try:
-        answer = generate_llm_answer(prompt, model_name="llama3.2")
+        answer = generate_llm_answer(prompt)
         return {
             "answer": answer,
             # "context_chunks": [all_chunks[i] for i in top_indices],

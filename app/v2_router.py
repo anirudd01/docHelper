@@ -46,7 +46,7 @@ def ask_ai(
                 )
                 sources = list(set([filename for _, filename, _ in rows]))
                 prompt = f"""Context:\n{context}\n\nQuestion: {question}\nAnswer:"""
-                answer = generate_llm_answer(prompt, model_name="llama3.2")
+                answer = generate_llm_answer(prompt)
                 return {
                     "answer": answer,
                     # "context_chunks": [row[0] for row in rows],

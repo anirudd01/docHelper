@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, File, Query, UploadFile
+from fastapi.responses import FileResponse
 from typing import List, Optional
 from utils.vector_utils import DEFAULT_EMBEDDING_MODEL, extract_embed_n_save
 from utils.file_manager import (
@@ -51,3 +52,11 @@ def get_pdf_text(filename: str = Query(...)):
         "preview": preview,
         "total_lines": len(text.splitlines()),
     }
+
+
+@core_router.get("/download-pdf")
+def download_pdf(filename: str = Query(...)):
+    pdf_path = fetch_pdf(filename)
+    if not pdf_path:
+        return {"error": "File not found"}
+    return FileResponse(pdf_path, media_type="application/pdf", filename=filename)
