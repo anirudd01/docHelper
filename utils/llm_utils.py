@@ -1,10 +1,13 @@
 import requests
 import json
+import os
+
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://0.0.0.0:11434")
 
 
 def generate_llm_answer(prompt: str, model_name: str = "llama3.2") -> str:
     response = requests.post(
-        "http://localhost:11434/api/generate",
+        f"{OLLAMA_URL}/api/generate",
         json={"model": model_name, "prompt": prompt, "stream": True},
         stream=True,
     )

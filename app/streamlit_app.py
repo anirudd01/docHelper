@@ -2,8 +2,8 @@ import streamlit as st
 import requests
 import os
 
-API_URL = os.getenv("DOCHELPER_API_URL", "http://localhost:8000/v2/ask_ai")
-UPLOAD_URL = os.getenv("DOCHELPER_UPLOAD_URL", "http://localhost:8000/core/upload-pdf")
+API_URL = os.getenv("DOCHELPER_API_URL", "http://0.0.0.0:8000/v2/ask_ai")
+UPLOAD_URL = os.getenv("DOCHELPER_UPLOAD_URL", "http://0.0.0.0:8000/core/upload-pdf")
 
 st.set_page_config(page_title="docHelper Q&A", layout="centered")
 st.title("📄 docHelper Q&A")
