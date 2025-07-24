@@ -1,19 +1,9 @@
 import streamlit as st
 import requests
 import os
-import socket
-import requests
 
 API_URL = os.getenv("DOCHELPER_API_URL", "http://0.0.0.0:8000/v2/ask_ai")
 UPLOAD_URL = os.getenv("DOCHELPER_UPLOAD_URL", "http://0.0.0.0:8000/core/upload-pdf")
-print("hostbyname", socket.gethostbyname("dochelper.railway.internal"))
-print("hostbyname:8000", socket.gethostbyname("dochelper.railway.internal:8000"))
-
-
-ipv4 = socket.gethostbyname("dochelper.railway.internal")
-url = f"http://{ipv4}:8000/v2/ask_ai"
-API_URL = f"http://{ipv4}:8000/v2/ask_ai"
-UPLOAD_URL = f"http://{ipv4}:8000/core/upload-pdf"
 
 st.set_page_config(page_title="docHelper Q&A", layout="centered")
 st.title("📄 docHelper Q&A")
