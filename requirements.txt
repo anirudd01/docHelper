@@ -6,3 +6,4 @@ scikit-learn
 requests
 python-multipart
 streamlit
+psycopg2-binary
