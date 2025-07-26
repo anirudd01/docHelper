@@ -163,7 +163,7 @@ def advanced_chunk_text(
         List[str]: List of text chunks.
     """
     # Clean the text first (in case not already cleaned)
-    text = TextCleaner.clean_text(text)
+    text = TextCleaner.clean_text_aggressive(text)
     # Split into sentences (simple regex, can be improved)
     sentences = re.split(r"(?<=[.!?])\s+", text)
     chunks = []

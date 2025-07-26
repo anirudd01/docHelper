@@ -1,6 +1,7 @@
-from typing import Optional
-import psycopg2
 import os
+from typing import Optional
+
+import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -180,6 +181,109 @@ def remove_pdf_data(filename: str, org_id: int = None) -> dict:
                     "success": True,
                     "message": f"PDF '{filename}' and all associated data removed",
                     "pdf_id": pdf_id,
+                }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        conn.close()
+
+
+def clean_existing_chunks_batch(batch_size: int = 10) -> dict:
+    """
+    Clean existing chunks in the database in batches to handle large datasets efficiently.
+    Also regenerates vectors to match the cleaned chunks.
+
+    Args:
+        batch_size: Number of chunks to process in each batch
+
+    Returns:
+        dict: Status of the operation with count of cleaned chunks and regenerated vectors
+    """
+    from utils.text_cleaner import TextCleaner
+    from utils.vector_utils import get_embedder
+
+    conn = get_db_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # Get total count first
+                cur.execute("""
+                    SELECT COUNT(*) 
+                    FROM chunks c 
+                    JOIN pdfs p ON c.pdf_id = p.id 
+                    WHERE c.text IS NOT NULL AND p.is_active = TRUE
+                """)
+                total_chunks = cur.fetchone()[0]
+
+                cleaned_count = 0
+                vector_regenerated_count = 0
+                embedder = get_embedder()
+
+                # Process in batches
+                offset = 0
+                while offset < total_chunks:
+                    # Get batch of chunks
+                    cur.execute(
+                        """
+                        SELECT c.id, c.text, c.pdf_id, p.filename 
+                        FROM chunks c 
+                        JOIN pdfs p ON c.pdf_id = p.id 
+                        WHERE c.text IS NOT NULL AND p.is_active = TRUE
+                        ORDER BY c.id
+                        LIMIT %s OFFSET %s
+                    """,
+                        (batch_size, offset),
+                    )
+
+                    batch_chunks = cur.fetchall()
+                    if not batch_chunks:
+                        break
+
+                    # Process batch
+                    for chunk_id, text, pdf_id, filename in batch_chunks:
+                        if text:
+                            # Clean the text
+                            cleaned_text = TextCleaner.clean_text_aggressive(text)
+
+                            # Only update if the text actually changed and is not empty
+                            if cleaned_text != text and cleaned_text.strip():
+                                # Update the chunk text
+                                cur.execute(
+                                    "UPDATE chunks SET text = %s WHERE id = %s",
+                                    (cleaned_text, chunk_id),
+                                )
+                                cleaned_count += 1
+
+                                # Regenerate vector for the cleaned chunk
+                                try:
+                                    # Generate new embedding
+                                    new_vector = embedder.embed([cleaned_text])[0]
+
+                                    # Update the embedding in the database
+                                    cur.execute(
+                                        "UPDATE embeddings SET embedding = %s WHERE chunk_id = %s",
+                                        (new_vector, chunk_id),
+                                    )
+                                    vector_regenerated_count += 1
+
+                                except Exception as e:
+                                    print(
+                                        f"Error regenerating vector for chunk {chunk_id}: {e}"
+                                    )
+                                    # Continue with other chunks even if one fails
+
+                    offset += batch_size
+                    print(
+                        f"Processed batch: {min(offset, total_chunks)}/{total_chunks} chunks"
+                    )
+
+                return {
+                    "success": True,
+                    "message": f"Cleaned {cleaned_count} chunks and regenerated {vector_regenerated_count} vectors in database (batch processing)",
+                    "chunks_cleaned": cleaned_count,
+                    "vectors_regenerated": vector_regenerated_count,
+                    "total_chunks": total_chunks,
+                    "batch_size": batch_size,
                 }
     except Exception as e:
         return {"success": False, "error": str(e)}

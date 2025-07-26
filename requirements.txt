@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 pdfplumber
-sentence-transformers
+fastembed
 requests
 python-multipart
 psycopg2-binary

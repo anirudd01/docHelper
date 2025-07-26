@@ -20,6 +20,7 @@ A **learning-first project** to explore integrating **Large Language Models (LLM
 - **✅ Parts of v4: Text Cleaning & Intelligent Chunking - Basic text preprocessing implemented**
 - **✅ Streamlit UI: Modern web interface for PDF upload and Q&A interactions**
 - **✅ Railway Deployment: Both frontend (Streamlit) and backend (FastAPI) deployed and tested**
+- **✅ FastEmbed Integration: Replaced SentenceTransformer with FastEmbed for faster, lighter embeddings**
 
 ---
 
@@ -75,6 +76,7 @@ streamlit run streamlit_app.py --server.port 8123 --server.address 0.0.0.0
 - `GET /core/get-pdf-text/{filename}` - Get extracted text from PDF
 - `GET /core/download-pdf/{filename}` - Download PDF file
 - `DELETE /core/remove-pdf` - Remove PDF and associated data (text, vectors, DB records)
+- `POST /core/clean-chunks` - Clean existing chunks in batch of 10 and regenerate vectors in database
 - `POST /v1/ask` - File-based Q&A (legacy)
 - `POST /v2/ask_ai` - Database-backed Q&A with vector search
 

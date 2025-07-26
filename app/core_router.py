@@ -1,18 +1,24 @@
+from typing import List, Optional
+
 from fastapi import APIRouter, BackgroundTasks, File, Query, UploadFile
 from fastapi.responses import FileResponse
-from typing import List, Optional
-from utils.vector_utils import DEFAULT_EMBEDDING_MODEL, extract_embed_n_save
+
+from utils.db_utils import (
+    clean_existing_chunks_batch,
+    get_or_create_org,
+    remove_pdf_data,
+)
 from utils.file_manager import (
     extract_text_from_pdf,
     fetch_pdf,
     list_pdfs,
     preview_lines,
-    store_pdf,
     remove_pdf_files,
+    store_pdf,
 )
-from utils.db_utils import remove_pdf_data, get_or_create_org
+from utils.vector_utils import DEFAULT_EMBEDDING_MODEL, extract_embed_n_save
 
-core_router = APIRouter(prefix="/core")
+core_router = APIRouter(prefix="/core", tags=["core"])
 
 
 @core_router.get("/list-pdfs", response_model=List[str])
@@ -42,20 +48,6 @@ async def upload_pdf(
     }
 
 
-@core_router.get("/get-pdf-text")
-def get_pdf_text(filename: str = Query(...)):
-    pdf_path = fetch_pdf(filename)
-    if not pdf_path:
-        return {"error": "File not found"}
-    text = extract_text_from_pdf(pdf_path)
-    preview = preview_lines(text, n=5)
-    return {
-        "filename": filename,
-        "preview": preview,
-        "total_lines": len(text.splitlines()),
-    }
-
-
 @core_router.get("/download-pdf")
 def download_pdf(filename: str = Query(...)):
     pdf_path = fetch_pdf(filename)
@@ -71,12 +63,12 @@ def remove_pdf(
 ):
     """
     Remove a PDF file and its associated data.
-    
+
     This endpoint will:
     1. Remove text files, cleaned text files, and vector files from the file system
     2. Mark the PDF as inactive in the database
     3. Remove chunks and embeddings from the database
-    
+
     Returns:
         dict: Status of the operation with details about what was removed
     """
@@ -84,16 +76,16 @@ def remove_pdf(
     pdf_path = fetch_pdf(filename)
     if not pdf_path:
         return {"error": "PDF file not found in storage"}
-    
+
     # Get org ID
     org_id = get_or_create_org(org_name)
-    
+
     # Remove database records
     db_result = remove_pdf_data(filename, org_id)
-    
+
     # Remove file system files
     file_result = remove_pdf_files(filename)
-    
+
     # Combine results
     if db_result["success"] and file_result["success"]:
         return {
@@ -109,3 +101,31 @@ def remove_pdf(
             "database": db_result,
             "filesystem": file_result,
         }
+
+
+@core_router.post("/clean-chunks")
+def clean_chunks():
+    """
+    Clean existing chunks in the database to remove special characters.
+    This is useful for cleaning data that was stored before enhanced text cleaning.
+    Also regenerates vectors to match the cleaned chunks.
+
+    Returns:
+        dict: Status of the operation with count of cleaned chunks and regenerated vectors
+    """
+    result = clean_existing_chunks_batch()
+    return result
+
+
+@core_router.get("/get-pdf-text")
+def get_pdf_text(filename: str = Query(...)):
+    pdf_path = fetch_pdf(filename)
+    if not pdf_path:
+        return {"error": "File not found"}
+    text = extract_text_from_pdf(pdf_path)
+    preview = preview_lines(text, n=5)
+    return {
+        "filename": filename,
+        "preview": preview,
+        "total_lines": len(text.splitlines()),
+    }
