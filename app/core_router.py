@@ -8,7 +8,9 @@ from utils.file_manager import (
     list_pdfs,
     preview_lines,
     store_pdf,
+    remove_pdf_files,
 )
+from utils.db_utils import remove_pdf_data, get_or_create_org
 
 core_router = APIRouter(prefix="/core")
 
@@ -60,3 +62,50 @@ def download_pdf(filename: str = Query(...)):
     if not pdf_path:
         return {"error": "File not found"}
     return FileResponse(pdf_path, media_type="application/pdf", filename=filename)
+
+
+@core_router.delete("/remove-pdf")
+def remove_pdf(
+    filename: str = Query(..., description="Name of the PDF file to remove"),
+    org_name: str = Query("default", description="Organization name"),
+):
+    """
+    Remove a PDF file and its associated data.
+    
+    This endpoint will:
+    1. Remove text files, cleaned text files, and vector files from the file system
+    2. Mark the PDF as inactive in the database
+    3. Remove chunks and embeddings from the database
+    
+    Returns:
+        dict: Status of the operation with details about what was removed
+    """
+    # Check if PDF exists in file system
+    pdf_path = fetch_pdf(filename)
+    if not pdf_path:
+        return {"error": "PDF file not found in storage"}
+    
+    # Get org ID
+    org_id = get_or_create_org(org_name)
+    
+    # Remove database records
+    db_result = remove_pdf_data(filename, org_id)
+    
+    # Remove file system files
+    file_result = remove_pdf_files(filename)
+    
+    # Combine results
+    if db_result["success"] and file_result["success"]:
+        return {
+            "success": True,
+            "message": f"Successfully removed PDF '{filename}' and all associated data",
+            "database": db_result,
+            "filesystem": file_result,
+        }
+    else:
+        return {
+            "success": False,
+            "message": "Some operations failed",
+            "database": db_result,
+            "filesystem": file_result,
+        }

@@ -215,3 +215,60 @@ def read_cleaned_chunks_and_vectors(
     if len(chunks) != len(vectors):
         return None
     return (chunks, vectors)
+
+
+def remove_pdf_files(filename: str) -> dict:
+    """
+    Remove PDF-related files from the file system.
+
+    Args:
+        filename: Name of the PDF file
+        keep_pdf: If True, keep the original PDF file. If False, remove it too.
+
+    Returns:
+        dict: Status of the operation with list of removed files
+    """
+    removed_files = []
+    errors = []
+
+    # Remove .pdf extension for text/vector file names
+    base_name = filename.replace(".pdf", "")
+
+    text_path = fetch_text(f"{base_name}.txt")
+    if text_path and os.path.exists(text_path):
+        try:
+            os.remove(text_path)
+            removed_files.append(f"text: {text_path}")
+        except Exception as e:
+            errors.append(f"Failed to remove text file: {e}")
+    else:
+        errors.append("Text file not found: text_path")
+
+    # Remove cleaned text file
+    cleaned_text_path = fetch_cleaned_text(f"{base_name}.txt")
+    if cleaned_text_path and os.path.exists(cleaned_text_path):
+        try:
+            os.remove(cleaned_text_path)
+            removed_files.append(f"cleaned text: {cleaned_text_path}")
+        except Exception as e:
+            errors.append(f"Failed to remove cleaned text file: {e}")
+    else:
+        errors.append("Cleaned text file not found: cleaned_text_path")
+
+    # Remove vector file
+    vector_path = fetch_vectors(f"{base_name}.npy")
+    if vector_path and os.path.exists(vector_path):
+        try:
+            os.remove(vector_path)
+            removed_files.append(f"vectors: {vector_path}")
+        except Exception as e:
+            errors.append(f"Failed to remove vector file: {e}")
+    else:
+        errors.append("Vector file not found: vector_path")
+
+    return {
+        "success": len(errors) == 0,
+        "removed_files": removed_files,
+        "errors": errors,
+        "message": f"Removed {len(removed_files)} files for '{filename}'",
+    }

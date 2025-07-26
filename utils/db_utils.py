@@ -123,5 +123,69 @@ def insert_embedding(chunk_id: int, embedding: list) -> int:
         conn.close()
 
 
+def get_pdf_id_by_filename(filename: str, org_id: int = None) -> Optional[int]:
+    """Get PDF ID by filename and optionally org_id."""
+    conn = get_db_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if org_id:
+                    cur.execute(
+                        "SELECT id FROM pdfs WHERE filename=%s AND org_id=%s AND is_active=TRUE",
+                        (filename, org_id),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT id FROM pdfs WHERE filename=%s AND is_active=TRUE",
+                        (filename,),
+                    )
+                row = cur.fetchone()
+                return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def remove_pdf_data(filename: str, org_id: int = None) -> dict:
+    """
+    Remove PDF data from database.
+
+    Args:
+        filename: Name of the PDF file
+        org_id: Optional org ID to filter by
+        soft_delete: If True, mark as inactive. If False, delete records completely.
+
+    Returns:
+        dict: Status of the operation
+    """
+    conn = get_db_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # Get PDF ID
+                pdf_id = get_pdf_id_by_filename(filename, org_id)
+                if not pdf_id:
+                    return {"success": False, "error": "PDF not found in database"}
+
+                # Hard delete: Remove embeddings first (due to foreign key constraint)
+                cur.execute(
+                    "DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM chunks WHERE pdf_id=%s)",
+                    (pdf_id,),
+                )
+
+                # Remove chunks
+                cur.execute("DELETE FROM chunks WHERE pdf_id=%s", (pdf_id,))
+
+                cur.execute("UPDATE pdfs SET is_active=FALSE WHERE id=%s", (pdf_id,))
+                return {
+                    "success": True,
+                    "message": f"PDF '{filename}' and all associated data removed",
+                    "pdf_id": pdf_id,
+                }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     init_tables()

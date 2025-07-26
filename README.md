@@ -6,7 +6,7 @@ A **learning-first project** to explore integrating **Large Language Models (LLM
 
 ## 🚦 Current State & Features
 
-### ✅ Accomplished (v1 + v2)
+### ✅ Accomplished (v1 + v2 + v3 + v7 + parts of v4)
 - Upload and manage multiple PDFs in file system (no overwrite, filenames preserved)
 - Extract and store text from PDFs for fast, repeatable access
 - Chunk text at upload time (user-defined chunk size, fixed per file)
@@ -15,27 +15,21 @@ A **learning-first project** to explore integrating **Large Language Models (LLM
 - Ask questions using local LLM (Ollama) with relevant context
 - Modular code: utilities for file management, embedding, vector search, and LLM calls
 - All file I/O and chunk/vector management handled in utils (not main API logic)
-- Ready for database integration and advanced features
+- **✅ v3: Database-Backed RAG with PostgreSQL + pgvector for persistent, scalable vector search**
+- **✅ v7: Model Deployment & Cloud Readiness - Deployed on Railway with production-ready setup**
+- **✅ Parts of v4: Text Cleaning & Intelligent Chunking - Basic text preprocessing implemented**
+- **✅ Streamlit UI: Modern web interface for PDF upload and Q&A interactions**
+- **✅ Railway Deployment: Both frontend (Streamlit) and backend (FastAPI) deployed and tested**
 
 ---
 
 ## 🛣️ Roadmap & Next Phases
 
-### 🚦 v3: Database-Backed RAG with ORG Support
-- Integrate PostgreSQL + pgvector for persistent, scalable vector search
-- Add org info (start with one org, scalable to many)
-- Store files on disk, but keep extensive metadata in DB (filename, org, chunk size, upload time, etc.)
-- Separate table for vector search (chunk, embedding, metadata)
-- /ask endpoint remains as is (file-based, for backward compatibility)
-- New /ask_ai endpoint: retrieves context from DB, then queries LLM
-- Best practices: use DB for metadata, keep files on disk for large file support, always track chunk size
-- Prepare for scaling to 100s/1000s of PDFs and multi-org use
-
-### 🧹 v4: Text Cleaning & Intelligent Chunking
-- Add text_cleaner utility for preprocessing (remove noise, fix formatting, categorize sections)
-- Support advanced chunking strategies (semantic, section-aware)
-- Store cleaned text for future use
-- Improves RAG and LLM answer quality
+### 🧹 v4: Enhanced Text Cleaning & Intelligent Chunking (In Progress)
+- ✅ Basic text cleaning implemented (noise removal, formatting fixes, bullet point removal)
+- 🔄 Support advanced chunking strategies (semantic, section-aware)
+- 🔄 Store cleaned text for future use
+- 🔄 Improves RAG and LLM answer quality
 
 ### 🧠 v5: Prompt Engineering & Domain Guardrails
 - Add prompt engineering techniques to ensure only company/employee domain questions are answered
@@ -47,17 +41,42 @@ A **learning-first project** to explore integrating **Large Language Models (LLM
 - Optimize chunking, embedding, and vector search for speed and memory
 - Monitor and profile for bottlenecks
 
-### 🛡️ v7: Model Deployment & Cloud Readiness
-- Explore loading models directly (not via Ollama API)
-- Prepare for deployment on platforms like Railway (with/without Docker)
-- If Ollama is not deployable, support model files and custom inference interface
-- Add deployment scripts and best practices
+### 💻 v8: Enhanced UI, Auth, and User Experience
+- ✅ Basic Streamlit UI implemented
+- 🔄 Implement authentication and per-user chat history
+- 🔄 Remember chat and context for each user
+- 🔄 Add admin features for managing orgs, files, and users
 
-### 💻 v8: UI, Auth, and User Experience
-- Add a simple UI (Streamlit or web frontend)
-- Implement authentication and per-user chat history
-- Remember chat and context for each user
-- Add admin features for managing orgs, files, and users
+---
+
+## 🚀 Deployment & Usage
+
+### Local Development
+```bash
+# Backend (FastAPI)
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend (Streamlit)
+cd streamlit_ui
+pip install -r requirements.txt
+streamlit run streamlit_app.py --server.port 8123 --server.address 0.0.0.0
+```
+
+### Production Deployment (Railway)
+- **Backend**: FastAPI app deployed on Railway with PostgreSQL + pgvector
+- **Frontend**: Streamlit app deployed on Railway with environment variables for API communication
+- **Database**: PostgreSQL with pgvector extension for vector similarity search
+- **Environment**: Production-ready with proper environment variable configuration
+
+### API Endpoints
+- `POST /core/upload-pdf` - Upload PDF files
+- `GET /core/list-pdfs` - List uploaded PDFs
+- `GET /core/get-pdf-text/{filename}` - Get extracted text from PDF
+- `GET /core/download-pdf/{filename}` - Download PDF file
+- `DELETE /core/remove-pdf` - Remove PDF and associated data (text, vectors, DB records)
+- `POST /v1/ask` - File-based Q&A (legacy)
+- `POST /v2/ask_ai` - Database-backed Q&A with vector search
 
 ---
 
@@ -89,13 +108,17 @@ Happy building and learning! 🚀
 - `utils/llm_utils.py` — Handles LLM (Ollama) prompt calls and streaming output.
 - `utils/db_utils.py` — PostgreSQL/pgvector connection, table creation, and DB insert/query helpers.
 - `utils/db_models.py` — Python dataclasses for Org, PDF, Chunk, Embedding (for structuring data in code).
+- `utils/text_cleaner.py` — Text preprocessing utilities for cleaning and formatting PDF text.
+- `streamlit_ui/streamlit_app.py` — Streamlit web interface for PDF upload and Q&A interactions.
+- `streamlit_ui/requirements.txt` — Python dependencies for the Streamlit frontend.
 - `data/pdfs/` — Directory where all uploaded PDFs are stored.
 - `data/texts/` — Directory for extracted text files.
 - `data/vectors/` — Directory for vector files (.npy).
-- `requirements.txt` — Python dependencies for the project.
+- `requirements.txt` — Python dependencies for the FastAPI backend.
 - `README.md` — Project documentation, roadmap, and usage instructions.
 
-### how to run stream lit app
+### How to run Streamlit app locally
 ```bash
-streamlit run app/streamlit_app.py --server.showEmailPrompt False --server.enableXsrfProtection=false --server.enableCORS=false --server.port 8123 --server.address 0.0.0.0
+cd streamlit_ui
+streamlit run streamlit_app.py --server.showEmailPrompt False --server.enableXsrfProtection=false --server.enableCORS=false --server.port 8123 --server.address 0.0.0.0
 ```
