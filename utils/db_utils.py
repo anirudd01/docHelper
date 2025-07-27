@@ -1,8 +1,11 @@
 import os
+from io import StringIO
 from typing import Optional
 
 import psycopg2
 from dotenv import load_dotenv
+
+from utils import timeit
 
 load_dotenv()
 
@@ -50,12 +53,8 @@ def init_tables():
         id SERIAL PRIMARY KEY,
         pdf_id INTEGER REFERENCES pdfs(id),
         chunk_index INTEGER NOT NULL,
-        text TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS embeddings (
-        id SERIAL PRIMARY KEY,
-        chunk_id INTEGER REFERENCES chunks(id),
-        embedding VECTOR(384) -- adjust dimension as needed
+        text TEXT NOT NULL,
+        embedding VECTOR(384) -- Store embedding directly with chunk
     );
     """
     execute_sql(sql)
@@ -96,30 +95,78 @@ def insert_pdf(org_id: int, filename: str, chunk_size: int) -> int:
         conn.close()
 
 
-def insert_chunk(pdf_id: int, chunk_index: int, text: str) -> int:
+@timeit
+def bulk_insert_chunks_with_embeddings(
+    pdf_id: int, chunks_data: list, batch_size: int = 300
+) -> bool:
     conn = get_db_conn()
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO chunks (pdf_id, chunk_index, text) VALUES (%s, %s, %s) RETURNING id",
-                    (pdf_id, chunk_index, text),
-                )
-                return cur.fetchone()[0]
+                # Process in batches of 100
+                for i in range(0, len(chunks_data), batch_size):
+                    batch = chunks_data[i : i + batch_size]
+                    data_to_insert = [
+                        (pdf_id, idx, text, embedding) for idx, text, embedding in batch
+                    ]
+                    cur.executemany(
+                        "INSERT INTO chunks (pdf_id, chunk_index, text, embedding) VALUES (%s, %s, %s, %s)",
+                        data_to_insert,
+                    )
+        return True
+    except Exception as e:
+        print(f"Error in bulk insert: {e}")
+        return False
     finally:
         conn.close()
 
 
-def insert_embedding(chunk_id: int, embedding: list) -> int:
+@timeit
+def bulk_insert_chunks_with_embeddings_copy(pdf_id: int, chunks_data: list) -> bool:
+    """
+    Bulk insert chunks with their embeddings using COPY command for maximum performance.
+
+    Args:
+        pdf_id: PDF ID
+        chunks_data: List of tuples (chunk_index, text, embedding)
+
+    Returns:
+        bool: Success status
+    """
     conn = get_db_conn()
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO embeddings (chunk_id, embedding) VALUES (%s, %s) RETURNING id",
-                    (chunk_id, embedding),
+                # Prepare data for COPY using StringIO
+                copy_data = StringIO()
+                for idx, text, embedding in chunks_data:
+                    # Convert embedding list to PostgreSQL vector format
+                    embedding_str = f"[{','.join(map(str, embedding))}]"
+                    # Escape any special characters in text
+                    text_escaped = (
+                        text.replace("\t", "\\t")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                    )
+                    copy_data.write(
+                        f"{pdf_id}\t{idx}\t{text_escaped}\t{embedding_str}\n"
+                    )
+
+                # Reset file pointer to beginning
+                copy_data.seek(0)
+
+                # Use COPY FROM for maximum performance
+                cur.copy_from(
+                    copy_data,
+                    "chunks",
+                    columns=("pdf_id", "chunk_index", "text", "embedding"),
+                    sep="\t",
                 )
-                return cur.fetchone()[0]
+
+                return True
+    except Exception as e:
+        print(f"Error in COPY bulk insert: {e}")
+        return False
     finally:
         conn.close()
 
@@ -167,13 +214,7 @@ def remove_pdf_data(filename: str, org_id: int = None) -> dict:
                 if not pdf_id:
                     return {"success": False, "error": "PDF not found in database"}
 
-                # Hard delete: Remove embeddings first (due to foreign key constraint)
-                cur.execute(
-                    "DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM chunks WHERE pdf_id=%s)",
-                    (pdf_id,),
-                )
-
-                # Remove chunks
+                # Hard delete: Remove chunks (embeddings are now part of chunks table)
                 cur.execute("DELETE FROM chunks WHERE pdf_id=%s", (pdf_id,))
 
                 cur.execute("UPDATE pdfs SET is_active=FALSE WHERE id=%s", (pdf_id,))
@@ -247,29 +288,20 @@ def clean_existing_chunks_batch(batch_size: int = 10) -> dict:
 
                             # Only update if the text actually changed and is not empty
                             if cleaned_text != text and cleaned_text.strip():
-                                # Update the chunk text
-                                cur.execute(
-                                    "UPDATE chunks SET text = %s WHERE id = %s",
-                                    (cleaned_text, chunk_id),
-                                )
-                                cleaned_count += 1
-
-                                # Regenerate vector for the cleaned chunk
                                 try:
                                     # Generate new embedding
                                     new_vector = embedder.embed([cleaned_text])[0]
 
-                                    # Update the embedding in the database
+                                    # Update both text and embedding in one operation
                                     cur.execute(
-                                        "UPDATE embeddings SET embedding = %s WHERE chunk_id = %s",
-                                        (new_vector, chunk_id),
+                                        "UPDATE chunks SET text = %s, embedding = %s WHERE id = %s",
+                                        (cleaned_text, new_vector, chunk_id),
                                     )
+                                    cleaned_count += 1
                                     vector_regenerated_count += 1
 
                                 except Exception as e:
-                                    print(
-                                        f"Error regenerating vector for chunk {chunk_id}: {e}"
-                                    )
+                                    print(f"Error updating chunk {chunk_id}: {e}")
                                     # Continue with other chunks even if one fails
 
                     offset += batch_size
@@ -291,5 +323,67 @@ def clean_existing_chunks_batch(batch_size: int = 10) -> dict:
         conn.close()
 
 
+def migrate_to_merged_schema():
+    """
+    Migrate existing database from separate chunks/embeddings tables to merged schema.
+    This should be run once when upgrading from the old schema.
+    """
+    conn = get_db_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # Check if old embeddings table exists
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = 'embeddings'
+                    );
+                """)
+                embeddings_table_exists = cur.fetchone()[0]
+
+                if not embeddings_table_exists:
+                    print("No migration needed - already using merged schema")
+                    return {"success": True, "message": "No migration needed"}
+
+                # Check if chunks table already has embedding column
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_name = 'chunks' AND column_name = 'embedding'
+                    );
+                """)
+                embedding_column_exists = cur.fetchone()[0]
+
+                if embedding_column_exists:
+                    print("Embedding column already exists in chunks table")
+                    return {"success": True, "message": "Schema already migrated"}
+
+                print("Starting migration to merged schema...")
+
+                # Add embedding column to chunks table
+                cur.execute("ALTER TABLE chunks ADD COLUMN embedding VECTOR(384);")
+
+                # Migrate data from embeddings table to chunks table
+                cur.execute("""
+                    UPDATE chunks 
+                    SET embedding = e.embedding 
+                    FROM embeddings e 
+                    WHERE chunks.id = e.chunk_id;
+                """)
+
+                # Drop old embeddings table
+                cur.execute("DROP TABLE embeddings;")
+
+                print("Migration completed successfully")
+                return {"success": True, "message": "Migration completed successfully"}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     init_tables()
+    # Run migration for existing databases
+    # migrate_to_merged_schema()

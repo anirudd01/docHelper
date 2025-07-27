@@ -1,6 +1,9 @@
-import requests
 import json
 import os
+
+import requests
+
+from utils import timeit
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://0.0.0.0:11434")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
@@ -8,6 +11,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 print(MODEL_NAME)
 
 
+@timeit
 def generate_llm_answer(prompt: str, model_name: str = MODEL_NAME) -> str:
     """
     Generate an LLM answer using the Groq API (OpenAI-compatible endpoint).
@@ -28,6 +32,7 @@ def generate_llm_answer(prompt: str, model_name: str = MODEL_NAME) -> str:
         raise RuntimeError(f"Groq API error: {response.text}")
 
 
+@timeit
 def generate_llm_answer_local(prompt: str, model_name: str = MODEL_NAME) -> str:
     response = requests.post(
         f"{OLLAMA_URL}/api/generate",

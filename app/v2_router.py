@@ -1,7 +1,10 @@
+import time
+
 from fastapi import APIRouter, Query
-from utils.vector_utils import get_embedder
+
 from utils.db_utils import get_db_conn, get_or_create_org
 from utils.llm_utils import generate_llm_answer
+from utils.vector_utils import get_embedder
 
 v2_router = APIRouter(prefix="/v2")
 
@@ -13,6 +16,7 @@ def ask_ai(
 ):
     embedder = get_embedder()
     q_vec = embedder.embed([question])[0]
+    start_time = time.time()
     conn = get_db_conn()
     try:
         with conn:
@@ -28,15 +32,13 @@ def ask_ai(
                 q_vec_str = "[" + ",".join(str(float(x)) for x in q_vec) + "]"
                 cur.execute(
                     """
-                    SELECT c.text, p.filename, e.embedding <#> %s::vector AS distance
+                    SELECT c.text, p.filename, c.embedding <#> %s::vector AS distance
                     FROM chunks c
                     JOIN pdfs p ON c.pdf_id = p.id
-                    JOIN embeddings e ON e.chunk_id = c.id
-                    WHERE c.pdf_id = ANY(%s)
                     ORDER BY distance ASC
                     LIMIT %s
                 """,
-                    (q_vec_str, pdf_ids, top_k),
+                    (q_vec_str, top_k),
                 )
                 rows = cur.fetchall()
                 if not rows:
@@ -47,9 +49,11 @@ def ask_ai(
                 sources = list(set([filename for _, filename, _ in rows]))
                 prompt = f"""Context:\n{context}\n\nQuestion: {question}\nAnswer:"""
                 answer = generate_llm_answer(prompt)
+                end_time = time.time()
+                print(f"Time taken to ask_ai: {end_time - start_time} seconds")
                 return {
                     "answer": answer,
-                    # "context_chunks": [row[0] for row in rows],
+                    "context_chunks": [row[0] for row in rows],
                     "sources": sources,
                 }
     except Exception as e:

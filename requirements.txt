@@ -1,8 +1,9 @@
 fastapi
 uvicorn
 pdfplumber
-fastembed
+PyMuPDF
 requests
 python-multipart
 psycopg2-binary
 dotenv
+sentence-transformers

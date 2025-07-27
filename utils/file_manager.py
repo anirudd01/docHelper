@@ -1,10 +1,12 @@
 import os
+import re
 from typing import List, Optional
 
+import fitz  # PyMuPDF
 import numpy as np
 import pdfplumber
-import re
-from utils.text_cleaner import TextCleaner
+
+from utils import timeit
 
 # Always resolve storage relative to project root
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,30 +22,34 @@ CLEANED_TEXT_STORAGE_DIR = os.path.join(PROJECT_ROOT, "data", "cleaned")
 os.makedirs(CLEANED_TEXT_STORAGE_DIR, exist_ok=True)
 
 
+@timeit
 def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extract pure text from a PDF file, ignoring images and formatting."""
+    """Extract pure text from a PDF file using PyMuPDF (faster) with fallback to pdfplumber."""
     try:
         text = []
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text.append(page_text)
+        with fitz.open(pdf_path) as pdf:
+            for page_num in range(pdf.page_count):
+                page = pdf.load_page(page_num)  # Load one page at a time
+                _text = page.get_text()
+                if _text:
+                    text.append(_text)
                 text.append("\n")
         return "\n".join(text)
     except Exception as e:
-        print(f"Error extracting text from {pdf_path}: {e}")
-        return str(text)
-
-
-def chunk_text(text: str, chunk_size: int = 200) -> List[str]:
-    """Split text into chunks of approximately chunk_size words."""
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), chunk_size):
-        chunk = " ".join(words[i : i + chunk_size])
-        chunks.append(chunk)
-    return chunks
+        print(f"PyMuPDF failed, falling back to pdfplumber: {e}")
+        try:
+            # Fallback to pdfplumber for critical documents
+            text = []
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text.append(page_text)
+                    text.append("\n")
+            return "\n".join(text)
+        except Exception as e2:
+            print(f"Both PyMuPDF and pdfplumber failed: {e2}")
+            return ""
 
 
 def preview_lines(text: str, n: int = 5) -> list:
@@ -80,8 +86,6 @@ def store_pdf(file_bytes: bytes, filename: str) -> str:
 def store_vectors(vectors, filename: str) -> str:
     """Save a vector file (e.g., .npy) to the vector storage directory."""
     file_path = os.path.join(VECTOR_STORAGE_DIR, filename)
-    import numpy as np
-
     np.save(file_path, vectors)
     return file_path
 
@@ -125,31 +129,7 @@ def fetch_cleaned_text(filename: str) -> Optional[str]:
     return file_path if os.path.exists(file_path) else None
 
 
-def read_chunks_and_vectors(
-    pdf_filename: str, chunk_size: int = 200
-) -> Optional[tuple]:
-    """Return (chunks, vectors) for a given PDF filename, or None if not available."""
-    fname_without_ext = os.path.splitext(pdf_filename)[0]
-    # Text file
-    text_filename = fname_without_ext + ".txt"
-    text_path = fetch_text(text_filename)
-    if not text_path:
-        return None
-    with open(text_path, "r", encoding="utf-8") as f:
-        text = f.read()
-
-    chunks = chunk_text(text, chunk_size=chunk_size)
-    # Vector file
-    vector_filename = fname_without_ext + ".npy"
-    vector_path = fetch_vectors(vector_filename)
-    if not vector_path:
-        return None
-    vectors = np.load(vector_path)
-    if len(chunks) != len(vectors):
-        return None
-    return (chunks, vectors)
-
-
+@timeit
 def advanced_chunk_text(
     text: str, chunk_size: int = 200, overlap: int = 30
 ) -> List[str]:
@@ -162,8 +142,6 @@ def advanced_chunk_text(
     Returns:
         List[str]: List of text chunks.
     """
-    # Clean the text first (in case not already cleaned)
-    text = TextCleaner.clean_text_aggressive(text)
     # Split into sentences (simple regex, can be improved)
     sentences = re.split(r"(?<=[.!?])\s+", text)
     chunks = []
@@ -193,6 +171,7 @@ def advanced_chunk_text(
     return [c.strip() for c in chunks if c.strip()]
 
 
+@timeit
 def read_cleaned_chunks_and_vectors(
     pdf_filename: str, chunk_size: int = 200, overlap: int = 30
 ) -> Optional[tuple]:
@@ -217,6 +196,7 @@ def read_cleaned_chunks_and_vectors(
     return (chunks, vectors)
 
 
+@timeit
 def remove_pdf_files(filename: str) -> dict:
     """
     Remove PDF-related files from the file system.

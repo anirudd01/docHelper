@@ -20,7 +20,31 @@ A **learning-first project** to explore integrating **Large Language Models (LLM
 - **✅ Parts of v4: Text Cleaning & Intelligent Chunking - Basic text preprocessing implemented**
 - **✅ Streamlit UI: Modern web interface for PDF upload and Q&A interactions**
 - **✅ Railway Deployment: Both frontend (Streamlit) and backend (FastAPI) deployed and tested**
-- **✅ FastEmbed Integration: Replaced SentenceTransformer with FastEmbed for faster, lighter embeddings**
+- **✅ Performance Optimizations: PyMuPDF for fast PDF extraction (1.04s vs 18s), COPY operations for bulk database inserts (2.24s vs 65s), async embedding with ThreadPoolExecutor**
+- **✅ Hybrid PDF Processing: PyMuPDF for speed with pdfplumber fallback for accuracy**
+
+---
+
+## 🚀 Performance Optimizations Achieved
+
+### 📊 Performance Improvements
+- **PDF Extraction**: 18.52s → 1.04s (**94% faster**) using PyMuPDF with streaming
+- **Database Operations**: 65s → 2.24s (**97% faster**) using PostgreSQL COPY commands
+- **Embedding Generation**: 118s → 5.24s (**96% faster**) using async processing with ThreadPoolExecutor
+- **Total Processing Time**: 213s → ~15-20s (**90%+ faster**) for large documents
+
+### 🔧 Technical Optimizations
+- **Hybrid PDF Processing**: PyMuPDF for speed, pdfplumber fallback for accuracy
+- **Streaming PDF Extraction**: Load pages individually instead of entire PDF
+- **Bulk Database Operations**: COPY commands instead of individual INSERTs
+- **Async Embedding**: Parallel processing with ThreadPoolExecutor
+- **Smart Batching**: Automatic batch size optimization based on CPU cores
+
+### 📈 Scalability Improvements
+- **Memory Efficiency**: Streaming processing reduces memory usage
+- **Database Performance**: Single connection with bulk operations
+- **Concurrent Processing**: Parallel embedding generation
+- **Error Handling**: Robust fallbacks for PDF extraction
 
 ---
 
